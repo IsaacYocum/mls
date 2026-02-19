@@ -1,0 +1,69 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <string.h>
+#include <sys/stat.h>
+#include "human_readable_size.c"
+
+int main(int argc, char *argv[])
+{
+  const char *dirToOpen = ".";
+  if (argc > 1)
+  {
+    dirToOpen = argv[1];
+  }
+
+  printf("Dir to list: %s\n", dirToOpen);
+  struct dirent *de;
+  DIR *dr = opendir(dirToOpen);
+
+  if (dr == NULL)
+  {
+    printf("Could not open current directory");
+    return EXIT_FAILURE;
+  }
+
+  struct stat st;
+
+  while ((de = readdir(dr)) != NULL)
+  {
+    size_t full_path_len = strlen(dirToOpen) + 1 + strlen(de->d_name) + 1;
+    char *full_path = malloc(full_path_len);
+    if (full_path == NULL)
+    {
+      perror("full path malloc failed");
+      exit(EXIT_FAILURE);
+    }
+
+    strcpy(full_path, dirToOpen);
+    // Append a directory separator if necessary (example for Unix/Linux)
+    if (dirToOpen[strlen(dirToOpen) - 1] != '/')
+    {
+      printf("addin /");
+      strcat(full_path, "/");
+    }
+    strcat(full_path, de->d_name);
+
+    if (stat(full_path, &st) == 0)
+    {
+      if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+      {
+        continue;
+      }
+
+      long long size_bytes = st.st_size;
+      char size_buff[20];
+      char *humanReadableSize = human_readable_size(size_bytes, size_buff);
+
+      printf("%s %d %d %s \n", de->d_name, de->d_type, st.st_size, humanReadableSize);
+    }
+    else
+    {
+      printf("Failed to stat: %s\n", full_path);
+    };
+  }
+
+  closedir(dr);
+
+  return EXIT_SUCCESS;
+}
