@@ -1,0 +1,1 @@
+sudo gcc hello.c -o mls
