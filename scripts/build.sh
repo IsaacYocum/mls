@@ -1,1 +1,1 @@
-sudo gcc hello.c -o mls
+sudo gcc src/hello.c -o mls
