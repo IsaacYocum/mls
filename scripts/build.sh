@@ -1,1 +1,1 @@
-sudo gcc src/hello.c -o mls
+sudo gcc src/my_ls.c -o mls
