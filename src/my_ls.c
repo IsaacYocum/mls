@@ -3,6 +3,9 @@
 #include <dirent.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <grp.h>
+#include <pwd.h>
 #include "human_readable_size.c"
 #include "human_readable_permissions.c"
 
@@ -55,11 +58,17 @@ int main(int argc, char *argv[])
       char permissions[11];
       human_readable_permissions(mode, permissions);
 
+      struct passwd *pwd = getpwuid(st.st_uid);
+      char *owner = pwd == NULL ? "unknown" : pwd->pw_name;
+
+      struct group *grp = getgrgid(st.st_gid);
+      char *group = grp == NULL ? "unknown" : grp->gr_name;
+
       long long size_bytes = st.st_size;
       char size_buff[20];
       char *humanReadableSize = human_readable_size(size_bytes, size_buff);
 
-      printf("%s %s %s %s %s %s %s \n", permissions, "links", "owner", "group", humanReadableSize, "date", de->d_name);
+      printf("%s %lu %s %s %s %s %s \n", permissions, st.st_nlink, owner, group, humanReadableSize, "date", de->d_name);
     }
     else
     {
