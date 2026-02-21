@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "human_readable_size.c"
+#include "human_readable_permissions.c"
 
 int main(int argc, char *argv[])
 {
@@ -39,7 +40,6 @@ int main(int argc, char *argv[])
     // Append a directory separator if necessary (example for Unix/Linux)
     if (dirToOpen[strlen(dirToOpen) - 1] != '/')
     {
-      printf("addin /");
       strcat(full_path, "/");
     }
     strcat(full_path, de->d_name);
@@ -51,11 +51,15 @@ int main(int argc, char *argv[])
         continue;
       }
 
+      int mode = st.st_mode & 07777;
+      char permissions[11];
+      human_readable_permissions(mode, permissions);
+
       long long size_bytes = st.st_size;
       char size_buff[20];
       char *humanReadableSize = human_readable_size(size_bytes, size_buff);
 
-      printf("%s %d %d %s \n", de->d_name, de->d_type, st.st_size, humanReadableSize);
+      printf("%s %s %s %s %s %s %s \n", permissions, "links", "owner", "group", humanReadableSize, "date", de->d_name);
     }
     else
     {
