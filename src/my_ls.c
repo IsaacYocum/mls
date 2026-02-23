@@ -13,7 +13,11 @@
 typedef struct
 {
   char permissions[11];
-  char *links;
+  nlink_t links;
+  char *owner;
+  char *group;
+  char *size;
+  char lastModified[13];
 } LS_ROW;
 
 int main(int argc, char *argv[])
@@ -77,8 +81,8 @@ int main(int argc, char *argv[])
       }
 
       // Links max length for formatting
-      char buffer[10];
-      int linkLength = snprintf(buffer, sizeof(buffer), "%lld", st.st_nlink);
+      char buffer[32];
+      int linkLength = snprintf(buffer, sizeof(buffer), "%lu", st.st_nlink);
       if (linkLength > maxLinksLength)
         maxLinksLength = linkLength;
 
@@ -142,24 +146,37 @@ int main(int argc, char *argv[])
       char permissions[11];
       human_readable_permissions(mode, permissions);
       strcpy(rows[currFileIndex].permissions, permissions);
-      // printf("Permissions struct value: %s\n", rows[0].permissions);
+
+      rows[currFileIndex].links = st.st_nlink;
 
       struct passwd *pwd = getpwuid(st.st_uid);
       char *owner = pwd == NULL ? "unknown" : pwd->pw_name;
+      rows[currFileIndex].owner = malloc(strlen(owner));
+      strcpy(rows[currFileIndex].owner, owner);
 
       struct group *grp = getgrgid(st.st_gid);
       char *group = grp == NULL ? "unknown" : grp->gr_name;
+      rows[currFileIndex].group = malloc(strlen(group));
+      strcpy(rows[currFileIndex].group, group);
+
+      long long size_bytes = st.st_size;
+      char size_buff[20];
+      char *humanReadableSize = human_readable_size(size_bytes, size_buff);
+      rows[currFileIndex].size = malloc(strlen(humanReadableSize));
+      strcpy(rows[currFileIndex].size, humanReadableSize);
+
+      char date_str[13];
+      struct tm *tm_info;
+      tm_info = localtime(&st.st_mtime);
+      strftime(date_str, sizeof(date_str), "%b %d %H:%M", tm_info);
+      strcpy(rows[currFileIndex].lastModified, date_str);
 
       time_t *lastModified = &st.st_mtime;
       char *lastModifiedString = lastModified == NULL ? "unknown" : ctime(lastModified);
       lastModifiedString[strlen(lastModifiedString) - 1] = '\0'; // remove new line from ctime()
 
-      long long size_bytes = st.st_size;
-      char size_buff[20];
-      char *humanReadableSize = human_readable_size(size_bytes, size_buff);
-
       printf(
-          "%s %-*lu %-*s %-*s %-*s %s %s \n",
+          "%s %-*lu %-*s %-*s %*s %s %s \n",
           permissions,
           maxLinksLength,
           st.st_nlink,
@@ -181,12 +198,23 @@ int main(int argc, char *argv[])
     free(full_path);
   }
 
-  printf("test Permissions struct value: %s\n", rows[0].permissions);
   for (int i = 0; i < numFiles; i++)
   {
     if (rows[i].permissions != NULL)
     {
-      printf("%s\n", rows[i].permissions);
+      printf(
+          "%s %-*lu %-*s %-*s %*s %s\n",
+          rows[i].permissions,
+          maxLinksLength,
+          rows[i].links,
+          maxOwnerLength,
+          rows[i].owner,
+          maxGroupLength,
+          rows[i].group,
+          maxSizeLength,
+          rows[i].size,
+          rows[i].lastModified
+        );
     }
   }
 
