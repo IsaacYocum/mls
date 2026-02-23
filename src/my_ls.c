@@ -10,6 +10,12 @@
 #include "human_readable_size.c"
 #include "human_readable_permissions.c"
 
+typedef struct
+{
+  char permissions[11];
+  char *links;
+} LS_ROW;
+
 int main(int argc, char *argv[])
 {
   const char *dirToOpen = ".";
@@ -30,10 +36,27 @@ int main(int argc, char *argv[])
 
   struct stat st;
 
+  size_t numFiles = 0;
+  size_t maxLinksLength = 0;
   size_t maxOwnerLength = 0;
   size_t maxGroupLength = 0;
   size_t maxSizeLength = 0;
 
+  // Get num files
+  while ((de = readdir(dr)) != NULL)
+  {
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+    {
+      continue;
+    }
+    numFiles++;
+  }
+  printf("total %d\n", numFiles);
+  closedir(dr);
+
+  LS_ROW *rows = calloc(numFiles, sizeof(LS_ROW));
+
+  dr = opendir(dirToOpen);
   while ((de = readdir(dr)) != NULL)
   {
     size_t full_path_len = strlen(dirToOpen) + 1 + strlen(de->d_name) + 1;
@@ -52,12 +75,21 @@ int main(int argc, char *argv[])
       {
         continue;
       }
+
+      // Links max length for formatting
+      char buffer[10];
+      int linkLength = snprintf(buffer, sizeof(buffer), "%lld", st.st_nlink);
+      if (linkLength > maxLinksLength)
+        maxLinksLength = linkLength;
+
+      // Owner max length for formatting
       struct passwd *pwd = getpwuid(st.st_uid);
       if (strlen(pwd->pw_name) > maxOwnerLength)
       {
         maxOwnerLength = strlen(pwd->pw_name);
       }
 
+      // Group max length for formatting
       struct group *grp = getgrgid(st.st_gid);
       char *group = grp == NULL ? "unknown" : grp->gr_name;
       if (strlen(grp->gr_name) > maxGroupLength)
@@ -65,6 +97,7 @@ int main(int argc, char *argv[])
         maxGroupLength = strlen(grp->gr_name);
       }
 
+      // Size max length for formatting
       long long size_bytes = st.st_size;
       char size_buff[20];
       char *humanReadableSize = human_readable_size(size_bytes, size_buff);
@@ -73,11 +106,13 @@ int main(int argc, char *argv[])
         maxSizeLength = strlen(humanReadableSize);
       }
     }
+
+    free(full_path);
   }
-
   closedir(dr);
-  dr = opendir(dirToOpen);
 
+  int currFileIndex = 0;
+  dr = opendir(dirToOpen);
   while ((de = readdir(dr)) != NULL)
   {
     size_t full_path_len = strlen(dirToOpen) + 1 + strlen(de->d_name) + 1;
@@ -106,6 +141,8 @@ int main(int argc, char *argv[])
       int mode = st.st_mode & 07777;
       char permissions[11];
       human_readable_permissions(mode, permissions);
+      strcpy(rows[currFileIndex].permissions, permissions);
+      // printf("Permissions struct value: %s\n", rows[0].permissions);
 
       struct passwd *pwd = getpwuid(st.st_uid);
       char *owner = pwd == NULL ? "unknown" : pwd->pw_name;
@@ -122,8 +159,9 @@ int main(int argc, char *argv[])
       char *humanReadableSize = human_readable_size(size_bytes, size_buff);
 
       printf(
-          "%s %lu %-*s %-*s %-*s %s %s \n",
+          "%s %-*lu %-*s %-*s %-*s %s %s \n",
           permissions,
+          maxLinksLength,
           st.st_nlink,
           maxOwnerLength,
           owner,
@@ -133,14 +171,27 @@ int main(int argc, char *argv[])
           humanReadableSize,
           lastModifiedString,
           de->d_name);
+      currFileIndex++;
     }
     else
     {
       printf("Failed to stat: %s\n", full_path);
     };
+
+    free(full_path);
+  }
+
+  printf("test Permissions struct value: %s\n", rows[0].permissions);
+  for (int i = 0; i < numFiles; i++)
+  {
+    if (rows[i].permissions != NULL)
+    {
+      printf("%s\n", rows[i].permissions);
+    }
   }
 
   closedir(dr);
+  free(rows);
 
   return EXIT_SUCCESS;
 }
