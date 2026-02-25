@@ -14,14 +14,25 @@ typedef struct
 {
   char permissions[11];
   nlink_t links;
-  char *owner;
-  char *group;
-  char *size;
+  char *pOwner;
+  char *pGroup;
+  char *pSize;
   char lastModified[13];
+  char *pName;
 } LS_ROW;
+
+int compareByName(const void *a, const void *b)
+{
+  const LS_ROW *rowA = (const LS_ROW *)a;
+  const LS_ROW *rowB = (const LS_ROW *)b;
+  return strcmp(rowA->pName, rowB->pName);
+}
 
 int main(int argc, char *argv[])
 {
+
+  clock_t start = clock();
+
   const char *dirToOpen = ".";
   if (argc > 1)
   {
@@ -60,6 +71,7 @@ int main(int argc, char *argv[])
 
   LS_ROW *rows = calloc(numFiles, sizeof(LS_ROW));
 
+  // Loop through to get max sizes for consistent column lengths
   dr = opendir(dirToOpen);
   while ((de = readdir(dr)) != NULL)
   {
@@ -95,7 +107,7 @@ int main(int argc, char *argv[])
 
       // Group max length for formatting
       struct group *grp = getgrgid(st.st_gid);
-      char *group = grp == NULL ? "unknown" : grp->gr_name;
+      char *pGroup = grp == NULL ? "unknown" : grp->gr_name;
       if (strlen(grp->gr_name) > maxGroupLength)
       {
         maxGroupLength = strlen(grp->gr_name);
@@ -150,20 +162,20 @@ int main(int argc, char *argv[])
       rows[currFileIndex].links = st.st_nlink;
 
       struct passwd *pwd = getpwuid(st.st_uid);
-      char *owner = pwd == NULL ? "unknown" : pwd->pw_name;
-      rows[currFileIndex].owner = malloc(strlen(owner));
-      strcpy(rows[currFileIndex].owner, owner);
+      char *pOwner = pwd == NULL ? "unknown" : pwd->pw_name;
+      rows[currFileIndex].pOwner = malloc(strlen(pOwner));
+      strcpy(rows[currFileIndex].pOwner, pOwner);
 
       struct group *grp = getgrgid(st.st_gid);
-      char *group = grp == NULL ? "unknown" : grp->gr_name;
-      rows[currFileIndex].group = malloc(strlen(group));
-      strcpy(rows[currFileIndex].group, group);
+      char *pGroup = grp == NULL ? "unknown" : grp->gr_name;
+      rows[currFileIndex].pGroup = malloc(strlen(pGroup));
+      strcpy(rows[currFileIndex].pGroup, pGroup);
 
       long long size_bytes = st.st_size;
       char size_buff[20];
       char *humanReadableSize = human_readable_size(size_bytes, size_buff);
-      rows[currFileIndex].size = malloc(strlen(humanReadableSize));
-      strcpy(rows[currFileIndex].size, humanReadableSize);
+      rows[currFileIndex].pSize = malloc(strlen(humanReadableSize));
+      strcpy(rows[currFileIndex].pSize, humanReadableSize);
 
       char date_str[13];
       struct tm *tm_info;
@@ -175,19 +187,10 @@ int main(int argc, char *argv[])
       char *lastModifiedString = lastModified == NULL ? "unknown" : ctime(lastModified);
       lastModifiedString[strlen(lastModifiedString) - 1] = '\0'; // remove new line from ctime()
 
-      printf(
-          "%s %-*lu %-*s %-*s %*s %s %s \n",
-          permissions,
-          maxLinksLength,
-          st.st_nlink,
-          maxOwnerLength,
-          owner,
-          maxGroupLength,
-          group,
-          maxSizeLength,
-          humanReadableSize,
-          lastModifiedString,
-          de->d_name);
+      rows[currFileIndex].pName = malloc(strlen(de->d_name));
+      strcpy(rows[currFileIndex].pName, de->d_name);
+      rows[currFileIndex].pName[strlen(rows[currFileIndex].pName)] = '\0';
+
       currFileIndex++;
     }
     else
@@ -198,28 +201,40 @@ int main(int argc, char *argv[])
     free(full_path);
   }
 
+  qsort(rows, numFiles, sizeof(LS_ROW), compareByName);
+
+  clock_t beforePrint = clock(); 
+  double before_print_time_taken = (double)(beforePrint - start) / CLOCKS_PER_SEC;
+  printf("main() took %.6f seconds before printing\n", before_print_time_taken);
+
   for (int i = 0; i < numFiles; i++)
   {
-    if (rows[i].permissions != NULL)
-    {
-      printf(
-          "%s %-*lu %-*s %-*s %*s %s\n",
-          rows[i].permissions,
-          maxLinksLength,
-          rows[i].links,
-          maxOwnerLength,
-          rows[i].owner,
-          maxGroupLength,
-          rows[i].group,
-          maxSizeLength,
-          rows[i].size,
-          rows[i].lastModified
-        );
-    }
+    printf(
+        "%s %-*lu %-*s %-*s %*s %s %s\n",
+        rows[i].permissions,
+        maxLinksLength,
+        rows[i].links,
+        maxOwnerLength,
+        rows[i].pOwner,
+        maxGroupLength,
+        rows[i].pGroup,
+        maxSizeLength,
+        rows[i].pSize,
+        rows[i].lastModified,
+        rows[i].pName);
+
+    free(rows[i].pOwner);
+    free(rows[i].pGroup);
+    free(rows[i].pSize);
+    free(rows[i].pName);
   }
 
   closedir(dr);
   free(rows);
+
+  clock_t end = clock(); 
+  double time_taken = (double)(end - start) / CLOCKS_PER_SEC;
+  printf("main() took %.6f seconds\n", time_taken);
 
   return EXIT_SUCCESS;
 }
