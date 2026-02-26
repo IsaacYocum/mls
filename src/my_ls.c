@@ -30,7 +30,6 @@ int compareByName(const void *a, const void *b)
 
 int main(int argc, char *argv[])
 {
-
   clock_t start = clock();
 
   const char *dirToOpen = ".";
@@ -51,7 +50,7 @@ int main(int argc, char *argv[])
 
   struct stat st;
 
-  size_t numFiles = 0;
+  size_t numRows = 0;
   size_t maxLinksLength = 0;
   size_t maxOwnerLength = 0;
   size_t maxGroupLength = 0;
@@ -64,17 +63,8 @@ int main(int argc, char *argv[])
     {
       continue;
     }
-    numFiles++;
-  }
-  printf("total %d\n", numFiles);
-  closedir(dr);
+    numRows++;
 
-  LS_ROW *rows = calloc(numFiles, sizeof(LS_ROW));
-
-  // Loop through to get max sizes for consistent column lengths
-  dr = opendir(dirToOpen);
-  while ((de = readdir(dr)) != NULL)
-  {
     size_t full_path_len = strlen(dirToOpen) + 1 + strlen(de->d_name) + 1;
     char *full_path = malloc(full_path_len);
     strcpy(full_path, dirToOpen);
@@ -84,7 +74,7 @@ int main(int argc, char *argv[])
       strcat(full_path, "/");
     }
     strcat(full_path, de->d_name);
-    // printf("test");
+
     if (stat(full_path, &st) == 0)
     {
       if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
@@ -125,7 +115,10 @@ int main(int argc, char *argv[])
 
     free(full_path);
   }
-  closedir(dr);
+  printf("total %d\n", numRows);
+  rewinddir(dr);
+
+  LS_ROW *rows = calloc(numRows, sizeof(LS_ROW));
 
   int currFileIndex = 0;
   dr = opendir(dirToOpen);
@@ -201,13 +194,13 @@ int main(int argc, char *argv[])
     free(full_path);
   }
 
-  qsort(rows, numFiles, sizeof(LS_ROW), compareByName);
+  qsort(rows, numRows, sizeof(LS_ROW), compareByName);
 
   clock_t beforePrint = clock(); 
   double before_print_time_taken = (double)(beforePrint - start) / CLOCKS_PER_SEC;
   printf("main() took %.6f seconds before printing\n", before_print_time_taken);
 
-  for (int i = 0; i < numFiles; i++)
+  for (int i = 0; i < numRows; i++)
   {
     printf(
         "%s %-*lu %-*s %-*s %*s %s %s\n",
@@ -229,8 +222,8 @@ int main(int argc, char *argv[])
     free(rows[i].pName);
   }
 
-  closedir(dr);
   free(rows);
+  closedir(dr);
 
   clock_t end = clock(); 
   double time_taken = (double)(end - start) / CLOCKS_PER_SEC;
